@@ -1,0 +1,1 @@
+- [Estimate converter table](estimate_converter_table.md) — T-shirt size → story point mapping (XXS=1/2/3, XS=5, S=8, M=13, L=20, XL=40) for converting legacy estimates.
