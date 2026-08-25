@@ -9,6 +9,7 @@
 - Fill in: **Requirement Name** (what it does), **Type** (Config/CR/New/TBC/Bug/Tech Task/Tech Story), **Stream** (which team/initiative), **Status** (NEW/IN PROGRESS/DONE/ON HOLD/NA)
 - Optional: add **Priority** (Critical/High/Medium/Low) — if you don't, it shows as empty
 - If there's a Jira ticket for this item, copy its link from Jira and paste it directly into the **Jira Link** column — no need to type a key, just paste the link
+- Optional: add anything else worth noting in the **Notes** column (free text, no format required)
 
 **What NOT to edit:**
 - **Requirement ID** column — auto-fills as NEW-0001, NEW-0002, etc. (don't touch)
@@ -18,6 +19,7 @@
 - Your item appears automatically in **API Design Planning, Sprint Planning, RTM, Roadmap** — no copy-paste needed, it's live
 - Once you assign it a **Sprint**, it also appears in **Release** (for DM to assign a release date)
 - Once you mark it **DONE** and run archive, it moves to the matching **Quarterly Report** (e.g., done in Sprint 10 → Q3)
+- If instead you mark it **NA** (no scope for MuleSoft) and run archive, it moves to the **"No scope for MS"** sheet instead — same removal from the other sheets, just a different destination
 
 ---
 
@@ -34,9 +36,11 @@
 - **Priority** — Critical/High/Medium/Low
 - **Design Status** — your tracking (e.g., "In Progress", "Ready for Dev", "Blocked")
 - **Handover** — notes for the developer (e.g., "See attached design doc")
+- **Notes** — free text, anything else worth flagging
 
 **What you'll see automatically (read-only):**
 - **Requirement Name, Stream, Status, Sprint, Jira Link** — these pull live from Backlog, so they're always current
+- **Design estimate** — auto-calculated from the item's HLE in Backlog (5 or below→0.5, 8→1, 13→2, 20→3, above 20→5). Updates itself automatically whenever HLE changes — nothing to fill in here.
 - If a requirement hasn't been assigned a Sprint yet, those cells stay blank — they'll populate as soon as Sprint Planning assigns one
 
 **Workflow:**
@@ -106,6 +110,8 @@
 
 **Q1/Q2/Q3/Q4 Quarterly Report sheets:** Archive destinations for finished items. When an item is marked DONE and you run the archive automation, it moves here (grouped by which sprint it completed in, not archive date). DM can still edit Release dates after items are archived — useful for final reporting.
 
+**"No scope for MS" sheet:** Archive destination for items marked NA (out of scope for MuleSoft). Same trigger as above — run the archive button and NA items land here instead of a Quarterly Report.
+
 **PI Governance (ROTB) sheet:** Special cross-cutting view of all PI9/PI10/PI11/PI12 items (plus M4M-owned items) in one place — whether they're still active or already archived. Has built-in filtering on every column (click the header dropdowns). Shows notes from Jul 31, Aug 5, Aug 13 for tracking progress across iterations.
 
 ---
@@ -123,12 +129,13 @@
 ✅ **Data validation dropdowns:** Type, Stream, Status, Priority, Release columns have dropdowns so you pick from a consistent list.
 
 ✅ **Run Archive Done Items** (manual button):
-- Look for the **"Run Archive Done Items"** button in the workbook (Workflows tab or visible location)
-- Click it to archive all items marked DONE to the matching Quarterly Report (Q1/Q2/Q3/Q4 based on their sprint)
-- Removes them from Backlog, Sprint Planning, RTM, API Design Planning
-- Keeps them in Release sheet for final reporting
+- Look for the **"Run Archive Done Items"** button in the workbook
+- Click it to archive:
+  - Items marked **DONE** → matching Quarterly Report (Q1/Q2/Q3/Q4 based on their sprint) — kept in Release for final reporting
+  - Items marked **NA** → the **"No scope for MS"** sheet — Release row removed too, since there's nothing to ship
+- Either way, removes the item from Backlog, Sprint Planning, RTM, API Design Planning
 - Updates the Requirement ID high-water mark to prevent ID collisions
-- Check the console output to see which items were archived
+- Check the console output to see which items were archived and where
 
 🔄 **Planned (not yet wired up):**
 - Jira integration: label a Jira ticket, auto-create a Backlog row with Jira Link filled in
