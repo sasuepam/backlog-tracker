@@ -8,6 +8,14 @@
  *   3. Deletes the row from Sprint Planning, RTM, API Design Planning
  *   4. Deletes the row from Backlog
  *
+ * For every Backlog row whose Status = "NA" (no scope for MuleSoft) that
+ * isn't already archived:
+ *   1. Appends the row to the "No scope for MS" sheet
+ *   2. Deletes any matching row from the Release tab (nothing to ship)
+ *   3. Deletes the row from Sprint Planning, RTM, API Design Planning
+ *   4. Deletes the row from Backlog
+ * (Same removal treatment as DONE items — steps 3–4 are identical.)
+ *
  * Run via: Automate tab → "Archive Done Items" button
  * Or trigger from Power Automate on a schedule / row-change event.
  *
@@ -31,13 +39,17 @@ const Q2 = "Q2 Backlog Report 2026";
 const Q3 = "Q3 Backlog Report 2026";
 const Q4 = "Q4 Backlog Report 2026";
 
+// Fixed destination for Status="NA" items — same column order as the
+// quarter tabs (Q_COLS), so the existing buildQRow/write logic works as-is.
+const NA_SHEET = "No scope for MS";
+
 const FREEZE_KEYS = ["name", "stream", "sprint", "status", "priority", "hle"] as const;
 type FreezeKey = typeof FREEZE_KEYS[number];
 
 interface ArchiveItem {
   reqId:        string;
   blRow:        number;   // index into blVals (1-based, 0 = header)
-  quarterSheet: string;
+  quarterSheet: string | null;   // null = destined for the NA_SHEET, not a quarter
   name:         string;
   type:         string;
   stream:       string;
@@ -84,6 +96,12 @@ function main(workbook: ExcelScript.Workbook): string {
   const q2Next = q2Used ? q2Used.getRowIndex() + q2Used.getRowCount() : 0;
   const q3Next = q3Used ? q3Used.getRowIndex() + q3Used.getRowCount() : 0;
   const q4Next = q4Used ? q4Used.getRowIndex() + q4Used.getRowCount() : 0;
+
+  // "No scope for MS" sheet — same read pattern as the quarter tabs above
+  const naWs   = workbook.getWorksheet(NA_SHEET);
+  const naUsed = naWs.getUsedRange();
+  const naVals = naUsed ? naUsed.getValues() : [] as (string | number | boolean)[][];
+  const naNext = naUsed ? naUsed.getRowIndex() + naUsed.getRowCount() : 0;
 
   // Backlog
   const blWs   = workbook.getWorksheet("Backlog");
@@ -140,14 +158,21 @@ function main(workbook: ExcelScript.Workbook): string {
   const relIdCol  = colWith(relHdr, ["req", "id"]) ?? 0;
   const relRelCol = colWith(relHdr, ["release"]);
   const freezeCols = FREEZE_KEYS.map(k => colWith(relHdr, [k]));
+  const relTables = relWs.getTables();
+  const relTable  = relTables.length > 0 ? relTables[0] : null;
+  const relHdrRow = relTable ? relTable.getHeaderRowRange().getRowIndex() : relStart;
+  const relTblBodyRow = relHdrRow + 1;
 
   // ════════════════════════════════════════════════════════════════════════════
   // PHASE 2 — PROCESS IN MEMORY (pure JavaScript, no Excel API calls)
   // ════════════════════════════════════════════════════════════════════════════
 
-  // Collect already-archived IDs from all four quarter tabs
+  // Collect already-archived IDs from all four quarter tabs AND the NA sheet —
+  // an item counts as "already archived" regardless of which destination it
+  // landed in, so re-runs never duplicate it and the Backlog orphan-cleanup
+  // below also catches leftover NA rows.
   const archived = new Set<string>();
-  const allQVals = [q1Vals, q2Vals, q3Vals, q4Vals];
+  const allQVals = [q1Vals, q2Vals, q3Vals, q4Vals, naVals];
   for (const qv of allQVals) {
     for (let r = 1; r < qv.length; r++) {
       const id = asStr(qv[r][0]);
@@ -167,7 +192,7 @@ function main(workbook: ExcelScript.Workbook): string {
     if (id) sprintMap.set(id, asStr(spVals[r][spSpCol]));
   }
 
-  // Find DONE rows in Backlog not yet archived
+  // Find DONE and NA rows in Backlog not yet archived
   // Backlog columns (0-based): 0=ReqID 1=Name 2=Type 3=Stream 4=Owner 5=Status
   //                            6=Priority 9=HLE 13=JiraLink (plain pasted URL)
   const items: ArchiveItem[] = [];
@@ -176,16 +201,23 @@ function main(workbook: ExcelScript.Workbook): string {
   for (let r = 1; r < blVals.length; r++) {
     const reqId  = asStr(blVals[r][0]);
     const status = asStr(blVals[r][5]).toUpperCase();
-    if (!reqId || status !== "DONE" || archived.has(reqId)) continue;
+    if (!reqId || archived.has(reqId)) continue;
+    if (status !== "DONE" && status !== "NA") continue;
 
-    const sprint   = sprintMap.get(reqId) ?? asStr(blVals[r][8]);
-    const sprintNo = firstInt(sprint);
-    const qName    = sprintNo !== null ? QUARTER[sprintNo] : undefined;
+    const sprint = sprintMap.get(reqId) ?? asStr(blVals[r][8]);
 
-    if (!qName) {
-      skipped.push(`${reqId} (sprint="${sprint}")`);
-      continue;
+    // DONE items route to whichever quarter their sprint maps to; NA items
+    // always go to the single fixed NA_SHEET (quarterSheet = null marks this).
+    let qName: string | null = null;
+    if (status === "DONE") {
+      const sprintNo = firstInt(sprint);
+      qName = sprintNo !== null ? (QUARTER[sprintNo] ?? null) : null;
+      if (!qName) {
+        skipped.push(`${reqId} (sprint="${sprint}")`);
+        continue;
+      }
     }
+    // status === "NA": qName stays null → destined for NA_SHEET
 
     items.push({
       reqId,
@@ -205,14 +237,15 @@ function main(workbook: ExcelScript.Workbook): string {
   }
 
   if (!items.length && !skipped.length) {
-    console.log("Nothing to archive — no new Done items found.");
+    console.log("Nothing to archive — no new Done or NA items found.");
     return "Nothing to archive.";
   }
 
-  // Look up Release value for each item
+  // Look up Release value for DONE items only — NA items have their Release
+  // row deleted outright below, not frozen, so no lookup is needed for them.
   for (let r = 1; r < relVals.length; r++) {
     const id = asStr(relVals[r][relIdCol]);
-    const item = items.find(i => i.reqId === id);
+    const item = items.find(i => i.reqId === id && i.quarterSheet !== null);
     if (!item || relRelCol === null) continue;
     item.release = relVals[r][relRelCol] as string | number | boolean;
   }
@@ -237,18 +270,22 @@ function main(workbook: ExcelScript.Workbook): string {
   }
   const newHwm = Math.max(currentHwm, maxArchivedNum);
 
-  // Group items by quarter sheet (for batch writes)
+  // Group items by quarter sheet (for batch writes); NA items go to forNA
   const forQ1 = items.filter(i => i.quarterSheet === Q1);
   const forQ2 = items.filter(i => i.quarterSheet === Q2);
   const forQ3 = items.filter(i => i.quarterSheet === Q3);
   const forQ4 = items.filter(i => i.quarterSheet === Q4);
+  const forNA = items.filter(i => i.quarterSheet === null);
+  const naArchivingIds = new Set<string>(forNA.map(i => i.reqId));
 
-  // Build Release row updates: clone existing row values, overwrite freeze cols
+  // Build Release row updates: clone existing row values, overwrite freeze
+  // cols. DONE items only — an NA item's Release row (if any) is deleted
+  // outright further down, not frozen.
   interface RelUpdate { wsRow: number; rowData: (string | number | boolean)[]; }
   const relUpdates: RelUpdate[] = [];
   for (let r = 1; r < relVals.length; r++) {
     const id   = asStr(relVals[r][relIdCol]);
-    const item = items.find(i => i.reqId === id);
+    const item = items.find(i => i.reqId === id && i.quarterSheet !== null);
     if (!item) continue;
     const updRow = relVals[r].map(v => v) as (string | number | boolean)[];
     const vals: Record<FreezeKey, string | number | boolean> = {
@@ -261,6 +298,11 @@ function main(workbook: ExcelScript.Workbook): string {
     });
     relUpdates.push({ wsRow: relStart + r, rowData: updRow });
   }
+
+  // NA items: delete their Release row outright (nothing to ship), rather
+  // than freezing it. Reuses the same rowsToDelete/deleteTableRows machinery
+  // used for Sprint Planning/RTM/API Design Planning below.
+  const relDelRows = rowsToDelete(relVals, relStart, relIdCol, naArchivingIds);
 
   // Collect rows to delete per sheet (0-based worksheet row, sorted bottom-up)
   const spDelRows  = rowsToDelete(spVals,  spStart,  spIdCol,  archivingIds);
@@ -279,13 +321,14 @@ function main(workbook: ExcelScript.Workbook): string {
   // Batch writes where possible; row deletes loop bottom-up per sheet.
   // ════════════════════════════════════════════════════════════════════════════
 
-  // 1. Append to quarter tabs (one setValues call per quarter)
+  // 1. Append to quarter tabs and the NA sheet (one setValues call each)
   if (forQ1.length) q1Ws.getRangeByIndexes(q1Next, 0, forQ1.length, Q_COLS.length).setValues(forQ1.map(i => buildQRow(i)));
   if (forQ2.length) q2Ws.getRangeByIndexes(q2Next, 0, forQ2.length, Q_COLS.length).setValues(forQ2.map(i => buildQRow(i)));
   if (forQ3.length) q3Ws.getRangeByIndexes(q3Next, 0, forQ3.length, Q_COLS.length).setValues(forQ3.map(i => buildQRow(i)));
   if (forQ4.length) q4Ws.getRangeByIndexes(q4Next, 0, forQ4.length, Q_COLS.length).setValues(forQ4.map(i => buildQRow(i)));
+  if (forNA.length) naWs.getRangeByIndexes(naNext, 0, forNA.length, Q_COLS.length).setValues(forNA.map(i => buildQRow(i)));
 
-  // 2. Freeze Release tab rows (one setValues call per archived item)
+  // 2. Freeze Release tab rows for DONE items (one setValues call per item)
   for (const u of relUpdates) {
     relWs.getRangeByIndexes(u.wsRow, 0, 1, u.rowData.length).setValues([u.rowData]);
   }
@@ -391,6 +434,7 @@ function main(workbook: ExcelScript.Workbook): string {
   deleteTableRows(spWs, spTable, spTblBodyRow, spDelRows, "Sprint Planning");
   deleteTableRows(rtmWs, rtmTable, rtmTblBodyRow, rtmDelRows, "RTM");
   deleteTableRows(apiWs, apiTable, apiTblBodyRow, apiDelRows, "API Design Planning");
+  deleteTableRows(relWs, relTable, relTblBodyRow, relDelRows, "Release (NA items only)");
   deleteBacklogRows(blWs, blTable, blTblBodyRow, blAllDelRows);
 
   // 4. Bump the ID High-Water Mark if this run archived anything with a higher
@@ -402,7 +446,7 @@ function main(workbook: ExcelScript.Workbook): string {
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
-  const archived_count = items.length;
+  const doneCount = items.length - forNA.length;
   const dest = [
     forQ1.length ? `${forQ1.length}→Q1` : "",
     forQ2.length ? `${forQ2.length}→Q2` : "",
@@ -411,7 +455,8 @@ function main(workbook: ExcelScript.Workbook): string {
   ].filter(s => !!s).join(", ");
 
   const summary = [
-    `Archived ${archived_count} item(s)${dest ? ` (${dest})` : ""}.`,
+    doneCount ? `Archived ${doneCount} item(s)${dest ? ` (${dest})` : ""}.` : "",
+    forNA.length ? `Archived ${forNA.length} item(s) to "${NA_SHEET}".` : "",
     skipped.length ? `Skipped ${skipped.length}: ${skipped.join("; ")}.` : "",
   ].filter(s => !!s).join(" ");
 
