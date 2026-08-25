@@ -493,7 +493,13 @@
       "Bash(git branch *)",
       "Bash(git remote *)",
       "Bash(git config *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(rm -rf /tmp/verifydelete)",
+      "Bash(mkdir -p /tmp/verifydelete)",
+      "Bash(soffice --headless -env:UserInstallation=file:///tmp/verifydelete/prof --convert-to xlsx --outdir /tmp/verifydelete \"/Users/sarahsuda/Documents/MSCbacklogtracker/workbook/Backlog Tracker - EINT MuleSoft.xlsx\")",
+      "Bash(rm -rf /tmp/finalcheck)",
+      "Bash(mkdir -p /tmp/finalcheck)",
+      "Bash(soffice --headless -env:UserInstallation=file:///tmp/finalcheck/prof --convert-to xlsx --outdir /tmp/finalcheck \"/Users/sarahsuda/Documents/MSCbacklogtracker/workbook/Backlog Tracker - EINT MuleSoft.xlsx\")"
     ]
   }
 }

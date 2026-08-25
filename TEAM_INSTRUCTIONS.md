@@ -8,10 +8,10 @@
 - Find a blank row at the bottom
 - Fill in: **Requirement Name** (what it does), **Type** (Config/CR/New/TBC/Bug/Tech Task/Tech Story), **Stream** (which team/initiative), **Status** (NEW/IN PROGRESS/DONE/ON HOLD/NA)
 - Optional: add **Priority** (Critical/High/Medium/Low) — if you don't, it shows as empty
+- If there's a Jira ticket for this item, copy its link from Jira and paste it directly into the **Jira Link** column — no need to type a key, just paste the link
 
 **What NOT to edit:**
 - **Requirement ID** column — auto-fills as NEW-0001, NEW-0002, etc. (don't touch)
-- **Jira Link** column — read-only, pulls from Jira Key
 - Any column that's shaded/bold — these are formula-driven and pull from other sheets
 
 **What happens next:**
@@ -131,7 +131,7 @@
 - Check the console output to see which items were archived
 
 🔄 **Planned (not yet wired up):**
-- Jira integration: label a Jira ticket, auto-create a Backlog row with Jira Key/Link filled in
+- Jira integration: label a Jira ticket, auto-create a Backlog row with Jira Link filled in
 - Trello sync: new Backlog item → auto-create Trello card; change sprint → update Trello
 - Auto-trigger archive: mark Status = DONE → automatically run archive (currently requires manual click)
 

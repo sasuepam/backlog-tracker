@@ -16,10 +16,12 @@
 
 // Quarter tab column order — must match what was written by the bulk archive.
 // A=ReqID  B=Name  C=Type  D=Stream  E=Owner  F=Status
-// G=JiraKey  H=JiraLink  I=Priority  J=Sprint  K=Release  L=HLE
+// G=JiraLink  H=Priority  I=Sprint  J=Release  K=HLE
+// (Jira Link is now a plain pasted URL, carried straight through from
+// Backlog — there is no separate Jira Key column anywhere anymore.)
 const Q_COLS = [
   "reqId", "name", "type", "stream", "owner", "status",
-  "jiraKey", "jiraLink", "priority", "sprint", "release", "hle",
+  "jiraLink", "priority", "sprint", "release", "hle",
 ] as const;
 type QKey = typeof Q_COLS[number];
 
@@ -44,7 +46,6 @@ interface ArchiveItem {
   priority:     string | number | boolean;
   sprint:       string;
   hle:          string | number | boolean;
-  jiraKey:      string;
   jiraLink:     string;
   release:      string | number | boolean;
 }
@@ -168,7 +169,7 @@ function main(workbook: ExcelScript.Workbook): string {
 
   // Find DONE rows in Backlog not yet archived
   // Backlog columns (0-based): 0=ReqID 1=Name 2=Type 3=Stream 4=Owner 5=Status
-  //                            6=Priority 9=HLE 13=JiraKey
+  //                            6=Priority 9=HLE 13=JiraLink (plain pasted URL)
   const items: ArchiveItem[] = [];
   const skipped: string[] = [];
 
@@ -186,7 +187,6 @@ function main(workbook: ExcelScript.Workbook): string {
       continue;
     }
 
-    const jiraKey = asStr(blVals[r][13]);
     items.push({
       reqId,
       blRow:        r,
@@ -199,8 +199,7 @@ function main(workbook: ExcelScript.Workbook): string {
       priority:     blVals[r][6] as string | number | boolean,
       sprint,
       hle:          blVals[r][9] as string | number | boolean,
-      jiraKey,
-      jiraLink:     jiraKey ? `https://smartship.atlassian.net/browse/${jiraKey}` : "",
+      jiraLink:     asStr(blVals[r][13]),
       release:      "",
     });
   }

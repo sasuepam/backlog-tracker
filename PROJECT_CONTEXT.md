@@ -14,13 +14,15 @@ Each requirement is one row, tracked by its **Requirement ID** across every tab.
 
 ## Requirement ID convention
 
-Use the Jira key (e.g. `INT-171`) as the Requirement ID whenever a Jira ticket already exists. Anyone can also add a future item straight to the Backlog tab with no Jira ticket at all — it gets a temporary ID in the form `NEW-0001`, `NEW-0002`, etc. This ID never changes afterwards, even once a real Jira ticket exists for it, since every other tab is joined to it — swapping it would break those links. When the item is ready to become a real Jira ticket, setting "Create Jira Ticket?" to Yes on the Backlog tab writes the returned Jira key into separate Jira Key / Jira Link columns alongside the ID, not in place of it.
+Use the Jira key (e.g. `INT-171`) as the Requirement ID whenever a Jira ticket already exists. Anyone can also add a future item straight to the Backlog tab with no Jira ticket at all — it gets a temporary ID in the form `NEW-0001`, `NEW-0002`, etc. This ID never changes afterwards, even once a real Jira ticket exists for it, since every other tab is joined to it — swapping it would break those links.
+
+There is no separate Jira Key field — paste the Jira issue's link directly into the **Jira Link** column (copy the link from Jira, paste it straight in). This is a plain manual field, not a formula.
 
 ## Tab ownership — who edits what
 
 | Tab | Owner | Types here (input) | Shown automatically (pulled) |
 |---|---|---|---|
-| Backlog | Anyone (entry point) | Requirement Name, Type, Stream, Status, Date Added, Create Jira Ticket?, Jira Key | Jira Link, Priority, Sprint, Release |
+| Backlog | Anyone (entry point) | Requirement Name, Type, Stream, Status, Date Added, Create Jira Ticket?, Jira Link | Priority, Sprint, Release |
 | API Design Planning | API Design Lead | RAML Required, RAML Delivery Date, Assignee, Priority, Design Status, Handover | Requirement Name, Stream, Jira Link, Status, Sprint |
 | RTM | BA | Predecessor, Successor, Dependency Status, Notes | Requirement Name, Stream, Jira Link, Status, Priority, Sprint |
 | Sprint Planning | BA / PO / SM | Sprint, HLE | Requirement Name, Stream, Priority, Status |
@@ -51,11 +53,11 @@ Beyond the 7 fixed columns, the sheet has open-ended "Notes - <date>" columns (s
 
 ## Planned automations (not yet wired up)
 
-1. Jira (labelled ticket) → auto-creates a Backlog row with Jira Key/Link filled in.
+1. Jira (labelled ticket) → auto-creates a Backlog row with Jira Link filled in.
 2. Any new Backlog row (Jira-sourced or typed straight in) → auto-creates a Trello card.
 3. Sprint changed for an item → updates the sprint label on its Trello card.
-4. "Create Jira Ticket?" set to Yes on a manually-added row → creates the Jira issue, writes the key back into Jira Key/Jira Link, flips the flag to Created.
-5. Scheduled refresh of the RTM Dependency Status column from the live status of the Predecessor/Successor Jira key.
+4. "Create Jira Ticket?" set to Yes on a manually-added row → creates the Jira issue, writes the link back into Jira Link, flips the flag to Created.
+5. Scheduled refresh of the RTM Dependency Status column from the live status of the Predecessor/Successor Jira issue.
 6. Status set to Done on Backlog → archive the row into the matching quarterly tab (see above) and remove it from the 5 working tabs.
 
 ## Current status
