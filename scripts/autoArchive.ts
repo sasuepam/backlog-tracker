@@ -321,6 +321,27 @@ function main(workbook: ExcelScript.Workbook): string {
   // Batch writes where possible; row deletes loop bottom-up per sheet.
   // ════════════════════════════════════════════════════════════════════════════
 
+  // 0. FREEZE every surviving Backlog row's Requirement ID to a literal value
+  // BEFORE any rows are deleted. Column Q's ID-generation formula is only
+  // "live" (not yet frozen) for rows that have never had anything else touch
+  // them — and a live formula computes its ID from ITS POSITION (MAX of every
+  // P value above it). Deleting any row above a still-live row shifts that
+  // row up and changes what its formula computes, silently renumbering an ID
+  // that was already shown to the user. Freezing every real (non-blank) row's
+  // current ID to a literal here — every single archive run, not just once —
+  // makes the ID permanent at the moment of freezing, so the deletions below
+  // can never again change an ID that already exists. Blank template rows are
+  // deliberately left untouched so they keep generating fresh IDs for new items.
+  let frozenCount = 0;
+  for (let r = 1; r < blVals.length; r++) {
+    const name = asStr(blVals[r][1]);
+    const reqId = asStr(blVals[r][0]);
+    if (!name || !reqId) continue;
+    blWs.getRange(`Q${blStart + r + 1}`).setValue(reqId);
+    frozenCount++;
+  }
+  console.log(`Froze ${frozenCount} Backlog row ID(s) to literal values before archiving.`);
+
   // 1. Append to quarter tabs and the NA sheet (one setValues call each)
   if (forQ1.length) q1Ws.getRangeByIndexes(q1Next, 0, forQ1.length, Q_COLS.length).setValues(forQ1.map(i => buildQRow(i)));
   if (forQ2.length) q2Ws.getRangeByIndexes(q2Next, 0, forQ2.length, Q_COLS.length).setValues(forQ2.map(i => buildQRow(i)));
